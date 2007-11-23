@@ -1,10 +1,5 @@
 [network]
-interface = eth0
-localip = 10.14.35.70
-netmask = 255.255.255.0
-gateway = 10.14.35.1
-nameserver1 = 202.144.10.50
-nameserver2 = 202.144.13.50
+localip = 10.12.35.70
 macaddress = 00 11 22 33 44 55
 
 [authentication]
