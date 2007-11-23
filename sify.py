@@ -1,4 +1,4 @@
-#!/usr/bin/env python -t
+#!/usr/bin/python -t
 #
 # Part of MSify project (http://code.google.com/p/msify/)
 #
