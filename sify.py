@@ -17,12 +17,12 @@ import urllib2
 import config
 
 
-class SifyConnector(object):
-    __session_id = None
+class SifyClient(object):
+    _session_id = None
 
     def __init__(self,
-               config_file=config.CONFIG_FILE,
-               sess_file=config.SESSION_FILE):
+                 config_file=config.CONFIG_FILE,
+                 sess_file=config.SESSION_FILE):
         """Initializer.
 
         Arguments:
@@ -33,40 +33,47 @@ class SifyConnector(object):
         """
         self.configuration = config.Configuration(config_file)
         self.sess_file = sess_file
-        if not os.path.exists(self.sess_file):
-            self.__CreateSession()
+        self._InitSession()
 
-        self.__sess = minidom.parse(self.sess_file)
-        self.__session_id = self.__GetSessionData('sessionID')
+    def _InitSession(self):
+        if not os.path.exists(self.sess_file):
+            self._CreateSession()
+
+        self._sess = minidom.parse(self.sess_file)
+        self._session_id = self._GetSessionData('sessionID')
 
     def Login(self):
         """Connects to the Sify broadband Internet."""
-        login_url = self.__GetSessionData('LoginURL')
-        data = self.__GetServerResponse(login_url)
-        PrintXml(data)
+        login_url = self._GetSessionData('LoginURL')
+        data = self._GetServerResponse(login_url)
+        print 'Response from Sify: ' + data
+        return data
 
     def Logout(self):
         """Logs out of Sify broadband Internet and deletes session file."""
         try:
-            logout_url = self.__GetUrl('Logout')
+            logout_url = self._GetUrl('Logout')
             # XXX This is a hack.  I have no idea why Sify sends an invalid
             # URL as logout URL.
             if logout_url.endswith('logout1.php'):
                 logout_url = logout_url.replace('/logout1.php', '/logout.php')
-            data = self.__GetServerResponse(logout_url)
-            PrintXml(data)
+            data = self._GetServerResponse(logout_url)
+            print 'Response from Sify: ' + data
+            return data
         finally:
             os.unlink(self.sess_file)
+            self._sess = None
+            self._session_id = None
 
-    def __GetServerResponse(self, url, headers={}):
-        """POSTs data got from self.__FormatPostData() to url and
+    def _GetServerResponse(self, url, headers={}):
+        """POSTs data got from self._FormatPostData() to url and
         returns whatever response server sends back.
 
         Arguments:
           url: URL to be requested.
           headers: HTTP headers to be sent ({header: value, ...})
         """
-        data = self.__FormatPostData()
+        data = self._FormatPostData()
         request = urllib2.Request(url, data=data, headers=headers)
         opener = urllib2.build_opener()
         strm = opener.open(request)
@@ -74,7 +81,7 @@ class SifyConnector(object):
         strm.close()
         return resp
 
-    def __FormatPostData(self):
+    def _FormatPostData(self):
         """Formats POST data to be passed on to Sify.
 
         Returns:
@@ -86,12 +93,12 @@ class SifyConnector(object):
                  'username': self.configuration.AuthenticationSetting('username'),
                  'password': self.configuration.AuthenticationSetting('password') }
 
-        if self.__session_id:
-            data['sessionid'] = self.__session_id
+        if self._session_id:
+            data['sessionid'] = self._session_id
 
         return urllib.urlencode(data)
 
-    def __CreateSession(self):
+    def _CreateSession(self):
         """Talks to Sify server and gets session information.
 
         Session information includes Session ID, Login URL, Logout URL,
@@ -104,24 +111,28 @@ class SifyConnector(object):
         USER_AGENT = 'BBClient'
 
         url = 'http://%s:%s%s' % (HOST, PORT, URI)
-        resp = self.__GetServerResponse(url, headers={'User-Agent': USER_AGENT})
+        resp = self._GetServerResponse(url, headers={'User-Agent': USER_AGENT})
         out = open(self.sess_file, 'w')
         out.write(resp)
         out.close()
 
-    def __GetSessionData(self, tag):
+    def _GetSessionData(self, tag):
         """Reads session data file and returns data contained in tag."""
-        elts = self.__sess.getElementsByTagName(tag)
+        if not self._sess:
+            self._InitSession()
+        elts = self._sess.getElementsByTagName(tag)
         if len(elts) == 0:
             raise ValueError('Tag %s is not found in session file.' % tag)
         return elts[0].firstChild.nodeValue
 
-    def __GetUrl(self, name):
+    def _GetUrl(self, name):
         """Returns the URL whose name is specified.
 
         Reads session information for getting the URLs.
         """
-        urls = self.__sess.getElementsByTagName('Urls')[0]
+        if not self._sess:
+            self._InitSession()
+        urls = self._sess.getElementsByTagName('Urls')[0]
         elt = urls.getElementsByTagName(name)[0]
         return elt.getAttribute('url')
 
@@ -143,12 +154,12 @@ def main(args):
     To get connection parameters, it reads ./.sify file.  It uses
     ./.sifysess as temporary session information file.
     """
-    connector = SifyConnector()
+    client = SifyClient()
 
     if args[1] == 'i':       # i -> sign in
-        connector.Login()
+        PrintXml(client.Login())
     elif args[1] == 'o':     # o -> sign out
-        connector.Logout()
+        PrintXml(client.Logout())
     else:
         print 'Unknown option %s' % args[1]
 
