@@ -44,22 +44,48 @@ class MSifyWindow(QtGui.QWidget):
 
     def _Login(self):
         response = self._client.Login()
-        self._ShowStatus(self._ExtractResultFromXml(response))
+        self._ShowStatus(self._ExtractResult(response))
+        self._ShowRenewalMessge(response)
 
     def _Logout(self):
         response = self._client.Logout()
-        self._ShowStatus(self._ExtractResultFromXml(response))
+        self._ShowStatus(self._ExtractResult(response))
 
-    def _ExtractResultFromXml(self, response_xml):
-        """Extract replymessage element from response XML and return it."""
+    def _ExtractResult(self, response_xml):
+        """Extract ReplyMessage element from response XML and return it."""
         tag = 'ReplyMessage'
         start = response_xml.index('<%s>' % tag) + len(tag) + 2  # +2 for < and >
         end = response_xml.index('</%s>' % tag)
         return response_xml[start:end]
 
+    def _ShowRenewalMessge(self, response_xml):
+        """Show renewal reminder to the user, if any present in response_xml.
+
+        Requires BeautifulSoup to be available.  If BeautifulSoup is not
+        installed, behaves like a no-op.
+        """
+        try:
+            import BeautifulSoup
+        except ImportError:
+            return None
+        soup = BeautifulSoup.BeautifulStoneSoup(response_xml)
+        elt = soup.find('renewals', flag='Y')
+        if not elt:
+            return None
+        r = QtGui.QMessageBox.information(self,
+                                          'Renewal Reminder', elt['message'],
+                                          'Renew now', 'Not now', '',
+                                          1)   # "Not now" button is default selection
+        if r == 0:
+            self._OpenBrowser(elt['url'])
+
     def _ShowStatus(self, status):
         """Display status text to the user."""
         self._status.setText(status)
+
+    def _OpenBrowser(self, url):
+        browser = QtCore.QProcess(self)
+        browser.start('firefox', [url])
 
 
 def main(args):
